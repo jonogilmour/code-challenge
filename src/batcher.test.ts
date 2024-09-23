@@ -15,38 +15,38 @@ describe(`Batcher`, () => {
     describe(`newBatcher`, () => {
         it(`should create a new Batcher`, async () => {
             const processor = () => true;
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: 5 });
             const batcherWithDefaults = newBatcher({ log: () => {}, frequency: 1000, processor });
 
             expect(batcher.batchSize).toBe(100);
-            expect(batcher.maxJobs).toBe(5);
+            expect(batcher.maxBatches).toBe(5);
             expect(batcher.isShutdown).toBe(false);
 
             expect(batcherWithDefaults.batchSize).toBe(1);
-            expect(batcherWithDefaults.maxJobs).toBe(0);
+            expect(batcherWithDefaults.maxBatches).toBe(0);
         });
 
         it(`should throw an error if frequency is < 1`, async () => {
-            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
-            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0.5, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
-            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -0.5, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
-            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -1, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
-            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: Number.MIN_SAFE_INTEGER, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0, processor: () => {}, maxBatches: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0.5, processor: () => {}, maxBatches: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -0.5, processor: () => {}, maxBatches: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -1, processor: () => {}, maxBatches: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: Number.MIN_SAFE_INTEGER, processor: () => {}, maxBatches: 5 })).toThrow('frequency cannot be less than 1ms');
         });
 
         it(`should throw an error if frequency is < 1`, async () => {
-            expect(() => newBatcher({ log: () => {}, batchSize: 0, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
-            expect(() => newBatcher({ log: () => {}, batchSize: 0.5, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
-            expect(() => newBatcher({ log: () => {}, batchSize: -1, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
-            expect(() => newBatcher({ log: () => {}, batchSize: -0.5, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
-            expect(() => newBatcher({ log: () => {}, batchSize: -100, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
-            expect(() => newBatcher({ log: () => {}, batchSize: Number.MIN_SAFE_INTEGER, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: 0, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: 0.5, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -1, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -0.5, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -100, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: Number.MIN_SAFE_INTEGER, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
         });
     });
 
     describe(`batch processing`, () => {
         it(`should employ a FIFO queue, with the oldest jobs being processed first`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, processor: () => {}, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, processor: () => {}, maxBatches: 5 });
             const callback = () => null;
             
             batcher.addJob({ callback, name: '1' });
@@ -77,7 +77,7 @@ describe(`Batcher`, () => {
         it(`should run on an interval schedule`, async () => {
             let jobsProcessed = 0;
 
-            const batcher = newBatcher({ log: () => {}, batchSize: 2, frequency: 1000, processor: () => jobsProcessed++, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 2, frequency: 1000, processor: () => jobsProcessed++, maxBatches: 5 });
             const callback = () => null;
             
             batcher.addJob({ callback, name: '1' });
@@ -101,7 +101,7 @@ describe(`Batcher`, () => {
         it(`should process all remaining jobs if the batch size is larger than the remaining jobs`, async () => {
             let jobsProcessed = 0;
 
-            const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, processor: () => jobsProcessed++, maxJobs: 15 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, processor: () => jobsProcessed++, maxBatches: 15 });
             const callback = () => null;
             
             batcher.addJob({ callback });
@@ -116,7 +116,7 @@ describe(`Batcher`, () => {
         it(`should keep processing new jobs that come in after the queue is emptied`, async () => {
             let jobsProcessed = 0;
 
-            const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, processor: () => jobsProcessed++, maxJobs: 15 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, processor: () => jobsProcessed++, maxBatches: 15 });
             const callback = () => null;
             
             batcher.addJob({ callback });
@@ -138,7 +138,7 @@ describe(`Batcher`, () => {
         });
 
         it(`should mark started jobs as in progress, and then complete when finished, with a saved message`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: asyncProcessor(500), maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: asyncProcessor(500), maxBatches: 5 });
             const callback = () => null;
             
             const job = batcher.addJob({ callback });
@@ -158,7 +158,7 @@ describe(`Batcher`, () => {
 
         it(`should mark a job as failed and save the error if an error occurs`, async () => {
             const e = new Error('oops');
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: ({ callback }: any) => callback(), maxJobs: 5 });            
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: ({ callback }: any) => callback(), maxBatches: 5 });            
             const job = batcher.addJob({ callback: () => { throw e; } }); // Called by the processor
 
             expect(job.result.status).toBe(JobStatus.Pending);
@@ -173,7 +173,7 @@ describe(`Batcher`, () => {
             jest.spyOn(global, 'clearInterval');
             const clearIntervalSpy = jest.mocked(clearInterval);
 
-            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, processor: () => {}, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, processor: () => {}, maxBatches: 5 });
             const callback = () => null;
             
             batcher.addJob({ callback });
@@ -205,7 +205,7 @@ describe(`Batcher`, () => {
 
     describe(`addJob`, () => {
         it(`should return the new job with the specified callback, and default UUID name`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -216,7 +216,7 @@ describe(`Batcher`, () => {
         });
 
         it(`should return the new job with the specified callback and name`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -227,7 +227,7 @@ describe(`Batcher`, () => {
         });
 
         it(`should set the new job status to pending`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -237,7 +237,7 @@ describe(`Batcher`, () => {
         });
 
         it(`should return the new job with a the specified callback`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -248,7 +248,7 @@ describe(`Batcher`, () => {
         });
 
         it(`should add a new job to the batcher job queue`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -258,7 +258,7 @@ describe(`Batcher`, () => {
         }); 
 
         it(`should not add a job and throw an error if the batcher is shutting down`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 5 });
 
             const callback = () => null;
 
@@ -268,20 +268,25 @@ describe(`Batcher`, () => {
         });
 
         it(`should not add a job and throw an error if the queue is full`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 1 });
+            // Max queue size is 2 * 2 = 4
+            const batcher = newBatcher({ log: () => {}, batchSize: 2, frequency: 1000, processor: () => true, maxBatches: 2 });
 
             const callback = () => null;
 
-            batcher.addJob({ callback, name: 'something1' });
+            // Add 4 jobs
+            batcher.addJob({ callback });
+            batcher.addJob({ callback });
+            batcher.addJob({ callback });
+            batcher.addJob({ callback });
 
-            // Adding a second job should throw
-            expect(() => batcher.addJob({ callback, name: 'something2' })).toThrow(BatcherErrors.QueueFull);
+            // Adding a 5th job (ie, a third batch) should throw
+            expect(() => batcher.addJob({ callback })).toThrow(BatcherErrors.QueueFull);
         });
     });
 
     describe(`shutdown`, () => {
         it(`should mark the batch processor as "shutting down"`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 1 });
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxBatches: 1 });
 
             expect(batcher.isShutdown).toBeFalsy();
             

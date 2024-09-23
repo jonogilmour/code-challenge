@@ -12,7 +12,7 @@ interface JobResult {
 
 interface Batcher {
     batchSize: number
-    maxJobs: number
+    maxBatches: number
     isShutdown: boolean
     queue: Job[]
     shutdown: Function
@@ -23,7 +23,7 @@ interface BatcherParams {
     batchSize?: number // The number of jobs to process in each batch
     frequency: number // Millisecond delay between processing batches
     processor: Function // Function that will process each job
-    maxJobs?: number // Maximum number of jobs to queue
+    maxBatches?: number // Maximum number of batches to queue
     log?: Function // Logging function
 }
 
@@ -45,31 +45,32 @@ export enum BatcherErrors {
 }
 
 /**
- * Creates a new batch processor.
+ * Creates a new micro-batcher.
  * 
  * @param args The arguments object.
  * @param args.batchSize (optional) The number of jobs that should be processed in a single batch, default 1.
  * @param args.frequency The number of milliseconds to wait between batches (must be > 0).
  * @param args.processor A callback function that processes a single job.
- * @param args.maxJobs (optional) The maximum number of jobs that can be held in the queue at any time. Defaults to 0 (no limit).
+ * @param args.maxBatches (optional) The maximum number of batches that can be held in the queue at any time (ie. queue max = batch size * max batches). Defaults to 0 (no limit).
  * @param args.log (optional) A logging function to use, defaults to console.log.
  * @returns An error if the batch queue is full, or if the batcher is shutting down.
  */
-const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = console.log }: BatcherParams) => {
+const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log = console.log }: BatcherParams) => {
     if (frequency < 1) {
         throw new Error('frequency cannot be less than 1ms');
     }
-    
+
     if (batchSize < 1) {
         throw new Error('batch size cannot be less than 1');
     }
     
+    // Adds a new job onto the queue. A job should 
     const addJob = ({ name, callback }: AddJobParams): Job => {
         if (batcher.isShutdown) {
             throw new Error(BatcherErrors.ShuttingDown);
         } else {
-            // If maxJobs is set, ensure there's room in the queue
-            if (batcher.maxJobs === 0 || batcher.queue.length < batcher.maxJobs) {
+            // If maxBatches is set, ensure there's room in the queue
+            if (batcher.maxBatches === 0 || batcher.queue.length < batcher.maxBatches * batcher.batchSize) {
                 const job: Job = {
                     name: name || crypto.randomUUID(),
                     callback,
@@ -102,21 +103,21 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
                 if (job) {
                     // Add an IIFE to push a promise onto the current batch
                     currentBatch.push((async () => {
-                    job.result.status = JobStatus.InProgress;
-
-                    try {
-                        await processor(job);
-                        job.result.status = JobStatus.Complete;
-                        job.result.message = "Job completed without errors";
-                    } catch (err) {
-                        job.result.status = JobStatus.Failed;
-                        job.result.message = "Job returned an error. Error type unknown";
-                        
-                        if (err instanceof Error) {
-                            job.result.error = err;
-                            job.result.message = "Job returned an error";
+                        job.result.status = JobStatus.InProgress;
+ 
+                        try {
+                            await processor(job);
+                            job.result.status = JobStatus.Complete;
+                            job.result.message = "Job completed without errors";
+                        } catch (err) {
+                            job.result.status = JobStatus.Failed;
+                            job.result.message = "Job returned an error. Error type unknown";
+                            
+                            if (err instanceof Error) {
+                                job.result.error = err;
+                                job.result.message = "Job returned an error";
+                            }
                         }
-                    }
                     })());
                 }
             }
@@ -149,7 +150,7 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
 
     const batcher: Batcher = {
         batchSize,
-        maxJobs,
+        maxBatches,
         isShutdown: false,
         shutdown,
         queue: [],
