@@ -158,7 +158,7 @@ describe(`Batcher`, () => {
             expect(job.result.error).toBe(e);
         });
 
-        it(`should stop the processing interval if the batcher is shutdown and the queue is empty`, async () => {
+        it(`should stop the processing interval if the batcher is shutdown and the last batch is processed`, async () => {
             jest.spyOn(global, 'clearInterval');
             const clearIntervalSpy = jest.mocked(clearInterval);
 
