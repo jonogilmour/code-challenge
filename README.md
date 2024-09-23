@@ -7,4 +7,5 @@
 - Frequency can be set to `null`, meaning the next batch starts only after the previous batch is complete.
 
 ## Testing
-run `npm test` to run the test library
+
+Run `npm test` to run the test library. Run `npm run testw` to run the test library in watch mode.
