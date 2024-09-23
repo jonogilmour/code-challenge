@@ -86,11 +86,18 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
             // If number of remaining jobs < batchSize, save some loops
             const size = Math.min(batcher.batchSize, batcher.queue.length);
 
+            log(`Processing batch of ${size} jobs.`);
+
+            // This holds a list of pending promises representing each job
+            const currentBatch: Promise<void>[] = [];
+
             // Process the next batch of jobs
             for (let i = 0; i < size; i++) {
                 // Remove the first job and process it
                 const job = batcher.queue.shift();
                 if (job) {
+                    // Add an IIFE to push a promise onto the current batch
+                    currentBatch.push((async () => {
                     job.result.status = JobStatus.InProgress;
 
                     try {
@@ -106,9 +113,15 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
                             job.result.message = "Job returned an error";
                         }
                     }
+                    })());
                 }
             }
 
+            // Ensure all job processing is done for the current batch
+            // We don't want an unhandled error to kill the whole batch
+            await Promise.allSettled(currentBatch);
+
+            // Check for shutdown
             if (batcher.isShutdown && batcher.queue.length === 0) {
                 // This was the final batch
                 clearInterval(interval);
