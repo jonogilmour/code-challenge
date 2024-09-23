@@ -24,6 +24,7 @@ interface BatcherParams {
     frequency: number // Millisecond delay between processing batches
     processor: Function // Function that will process each job
     maxJobs?: number // Maximum number of jobs to queue
+    log?: Function // Logging function
 }
 
 interface AddJobParams {
@@ -47,13 +48,18 @@ export enum BatcherErrors {
  * Creates a new batch processor.
  * 
  * @param args The arguments object.
- * @param args.batchSize The number of jobs that should be processed in a single batch.
- * @param args.frequency The number of milliseconds to wait between batches.
+ * @param args.batchSize (optional) The number of jobs that should be processed in a single batch, default 1.
+ * @param args.frequency The number of milliseconds to wait between batches (must be > 0).
  * @param args.processor A callback function that processes a single job.
  * @param args.maxJobs (optional) The maximum number of jobs that can be held in the queue at any time. Defaults to 0 (no limit).
+ * @param args.log (optional) A logging function to use, defaults to console.log.
  * @returns An error if the batch queue is full, or if the batcher is shutting down.
  */
-const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0 }: BatcherParams) => {
+const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = console.log }: BatcherParams) => {
+    if (frequency < 1) {
+        throw new Error('frequency cannot be less than 1ms');
+    }
+    
     const addJob = ({ name, callback }: AddJobParams): Job => {
         if (batcher.isShutdown) {
             throw new Error(BatcherErrors.ShuttingDown);
@@ -75,11 +81,46 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0 }: Batche
         }
     };
 
-    const processBatch = () => {
+    const processBatch = async () => {
+        if (batcher.queue.length) {
+            // If number of remaining jobs < batchSize, save some loops
+            const size = Math.min(batcher.batchSize, batcher.queue.length);
+
+            // Process the next batch of jobs
+            for (let i = 0; i < size; i++) {
+                // Remove the first job and process it
+                const job = batcher.queue.shift();
+                if (job) {
+                    job.result.status = JobStatus.InProgress;
+
+                    try {
+                        await processor(job);
+                        job.result.status = JobStatus.Complete;
+                        job.result.message = "Job completed without errors";
+                    } catch (err) {
+                        job.result.status = JobStatus.Failed;
+                        job.result.message = "Job returned an error. Error type unknown";
+                        
+                        if (err instanceof Error) {
+                            job.result.error = err;
+                            job.result.message = "Job returned an error";
+                        }
+                    }
+                }
+            }
+
+            if (batcher.isShutdown && batcher.queue.length === 0) {
+                // This was the final batch
+                clearInterval(interval);
+                log("Batch processor shut down");
+            }
+        } else {
+            log(`No jobs to process - waiting ${frequency} ms...`);
+        }
     };
 
     const interval = setInterval(processBatch, frequency);
-    console.log(`Starting batch processor - waiting ${frequency} ms...`);
+    log(`Starting batch processor - waiting ${frequency}ms...`);
 
     // shutdown signals the batcher to shut down
     const shutdown = () => {
