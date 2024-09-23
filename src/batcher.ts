@@ -124,6 +124,10 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
 
     // shutdown signals the batcher to shut down
     const shutdown = () => {
+        if (!batcher.isShutdown) {
+            batcher.isShutdown = true;
+            log("Shutting down batch processor...");
+        }
     }
 
     const batcher: Batcher = {

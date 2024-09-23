@@ -157,6 +157,38 @@ describe(`Batcher`, () => {
             expect(job.result.status).toBe(JobStatus.Failed);
             expect(job.result.error).toBe(e);
         });
+
+        it(`should stop the processing interval if the batcher is shutdown and the queue is empty`, async () => {
+            jest.spyOn(global, 'clearInterval');
+            const clearIntervalSpy = jest.mocked(clearInterval);
+
+            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, processor: () => {}, maxJobs: 5 });
+            const callback = () => null;
+            
+            batcher.addJob({ callback });
+            batcher.addJob({ callback });
+            batcher.addJob({ callback });
+
+            expect(clearIntervalSpy).not.toHaveBeenCalled();
+
+            batcher.shutdown();
+
+            expect(clearIntervalSpy).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(1000);
+            expect(batcher.queue).toHaveLength(2);
+
+            expect(clearIntervalSpy).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(1000);
+            expect(batcher.queue).toHaveLength(1);
+
+            expect(clearIntervalSpy).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(1000);
+            expect(batcher.queue).toHaveLength(0);
+
+            expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -237,12 +269,14 @@ describe(`Batcher`, () => {
     });
 
     describe(`shutdown`, () => {
-        it(`should mark the batch processor as "shutting down"`, () => {
-            expect(1).toBe(0);
-        });
+        it(`should mark the batch processor as "shutting down"`, async () => {
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 1 });
 
-        it(`should clear the interval when the queue is empty`, () => {
-            expect(1).toBe(0);
+            expect(batcher.isShutdown).toBeFalsy();
+            
+            batcher.shutdown();
+
+            expect(batcher.isShutdown).toBeTruthy();
         });
     });
 });
