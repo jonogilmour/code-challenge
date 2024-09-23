@@ -53,7 +53,28 @@ describe(`Batcher`, () => {
             expect(job.callback).toBe(callback);
         });
 
-        it(`should return the new job with a specified name`, () => {
+        it(`should return the new job with the specified callback and name`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            const job = batcher.addJob({ callback, name: 'something' });
+
+            expect(job.name).toBe('something');
+            expect(job.callback).toBe(callback);
+        });
+
+        it(`should set the new job status to pending`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            const job = batcher.addJob({ callback });
+
+            expect(job.result.status).toBe(JobStatus.Pending);
+        });
+
+        it(`should return the new job with a the specified callback`, () => {
             const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
 
             const callback = () => null;
