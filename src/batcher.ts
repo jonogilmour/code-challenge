@@ -16,10 +16,10 @@ interface Batcher {
     isShutdown: boolean
     queue: Job[]
     shutdown: Function
-    addJob: (job: Job) => Error | undefined
+    addJob: (args: AddJobParams) => Job
 }
 
-interface MicroBatcherParams {
+interface BatcherParams {
     batchSize?: number // The number of jobs to process in each batch
     frequency: number // Millisecond delay between processing batches
     processor: Function // Function that will process each job
@@ -53,8 +53,26 @@ export enum BatcherErrors {
  * @param args.maxJobs (optional) The maximum number of jobs that can be held in the queue at any time. Defaults to 0 (no limit).
  * @returns An error if the batch queue is full, or if the batcher is shutting down.
  */
-const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0 }: MicroBatcherParams) => {
-    const addJob = ({ name, callback }: AddJobParams): Error | undefined => {
+const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0 }: BatcherParams) => {
+    const addJob = ({ name, callback }: AddJobParams): Job => {
+        if (batcher.isShutdown) {
+            throw new Error(BatcherErrors.ShuttingDown);
+        } else {
+            // If maxJobs is set, ensure there's room in the queue
+            if (batcher.maxJobs === 0 || batcher.queue.length < batcher.maxJobs) {
+                const job: Job = {
+                    name: name || crypto.randomUUID(),
+                    callback,
+                    result: {
+                        status: JobStatus.Pending
+                    }
+                };
+                batcher.queue.push(job);
+                return job;
+            } else {
+                throw new Error(BatcherErrors.QueueFull);
+            }
+        }
     };
 
     const processBatch = () => {

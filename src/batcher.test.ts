@@ -1,7 +1,12 @@
-import { newBatcher } from "./batcher";
+import { newBatcher, BatcherErrors } from "./batcher";
 
 describe(`Batcher`, () => {
     jest.useFakeTimers();
+
+    beforeEach(() => {
+        jest.resetAllMocks();
+        jest.spyOn(crypto, 'randomUUID').mockImplementation(() => 'so-m-eu-ui-d');
+    });
 
     describe(`newBatcher`, () => {
         it(`should create a new Batcher`, () => {
@@ -37,20 +42,57 @@ describe(`Batcher`, () => {
     });
 
     describe(`addJob`, () => {
+        it(`should return the new job with a default UUID name`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            const job = batcher.addJob({ callback });
+
+            expect(job.name).toBe('so-m-eu-ui-d');
+            expect(job.callback).toBe(callback);
+        });
+
+        it(`should return the new job with a specified name`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            const job = batcher.addJob({ callback, name: 'something' });
+
+            expect(job.name).toBe('something');
+            expect(job.callback).toBe(callback);
+        });
+
         it(`should add a new job to the batcher job queue`, () => {
-            expect(1).toBe(0);
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            const job = batcher.addJob({ callback, name: 'something' });
+
+            expect(batcher.queue[0]).toBe(job);
         }); 
 
-        it(`should add a default job name if none is supplied`, () => {
-            expect(1).toBe(0);
+        it(`should not add a job and throw an error if the batcher is shutting down`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 5 });
+
+            const callback = () => null;
+
+            batcher.isShutdown = true;
+
+            expect(() => batcher.addJob({ callback, name: 'something' })).toThrow(BatcherErrors.ShuttingDown);
         });
 
-        it(`should not add a job if the batcher is shutting down`, () => {
-            expect(1).toBe(0);
-        });
+        it(`should not add a job and throw an error if the queue is full`, () => {
+            const batcher = newBatcher({ batchSize: 100, frequency: 1000, processor: () => true, maxJobs: 1 });
 
-        it(`should not add a job if the queue is full`, () => {
-            expect(1).toBe(0);
+            const callback = () => null;
+
+            batcher.addJob({ callback, name: 'something1' });
+
+            // Adding a second job should throw
+            expect(() => batcher.addJob({ callback, name: 'something2' })).toThrow(BatcherErrors.QueueFull);
         });
     });
 
