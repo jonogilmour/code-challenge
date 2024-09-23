@@ -28,8 +28,19 @@ describe(`Batcher`, () => {
 
         it(`should throw an error if frequency is < 1`, async () => {
             expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: 0.5, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
+            expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -0.5, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
             expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: -1, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
             expect(() => newBatcher({ log: () => {}, batchSize: 100, frequency: Number.MIN_SAFE_INTEGER, processor: () => {}, maxJobs: 5 })).toThrow('frequency cannot be less than 1ms');
+        });
+
+        it(`should throw an error if frequency is < 1`, async () => {
+            expect(() => newBatcher({ log: () => {}, batchSize: 0, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: 0.5, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -1, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -0.5, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: -100, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
+            expect(() => newBatcher({ log: () => {}, batchSize: Number.MIN_SAFE_INTEGER, frequency: 100, processor: () => {}, maxJobs: 5 })).toThrow('batch size cannot be less than 1');
         });
     });
 

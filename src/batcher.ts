@@ -60,6 +60,10 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxJobs = 0, log = co
         throw new Error('frequency cannot be less than 1ms');
     }
     
+    if (batchSize < 1) {
+        throw new Error('batch size cannot be less than 1');
+    }
+    
     const addJob = ({ name, callback }: AddJobParams): Job => {
         if (batcher.isShutdown) {
             throw new Error(BatcherErrors.ShuttingDown);
