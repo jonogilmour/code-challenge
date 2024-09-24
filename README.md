@@ -11,6 +11,7 @@ A simple library that processes batches of jobs on a minimum frequency.
 - Can set the maximum number of batches that can be queued - meaning max jobs queued = batch size * max batches. This ensures the queue size is always a multiple of batch size.
 - Each job can be tracked internally, meaning the state of the job is saved inside the job object. The `job.result` can be checked to see if a job is pending, in progress, completed, or failed with an error.
 - A batch need not be full to be processed - if size of queue is lower than batch size, the remaining jobs will be processed as a batch.
+- Dependency injection for a batch processor (basic implementation included).
 
 ## Building
 
