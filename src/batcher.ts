@@ -22,7 +22,7 @@ interface Batcher {
 interface BatcherParams {
     batchSize?: number // The number of jobs to process in each batch
     frequency: number // Millisecond delay between processing batches
-    processor: Function // Function that will process each job
+    batchProcessor: BatchProcessor // Injectable batch processor
     maxBatches?: number // Maximum number of batches to queue
     log?: Function // Logging function
 }
@@ -31,6 +31,17 @@ interface AddJobParams {
     name?: string // handy name to give a particular job
     callback: Function // function that will be executed when job is processed
 }
+
+interface NewBatchProcessorParams {
+    jobProcessor: (job: Job) => Promise<void>
+}
+
+interface BatchProcessorParams {
+    queue: Job[]
+    batchSize: number
+}
+
+type BatchProcessor = (args: BatchProcessorParams) => Promise<PromiseSettledResult<void>[]>;
 
 export enum JobStatus {
     Pending = "PENDING",
@@ -50,12 +61,12 @@ export enum BatcherErrors {
  * @param args The arguments object.
  * @param args.batchSize (optional) The number of jobs that should be processed in a single batch, default 1.
  * @param args.frequency The number of milliseconds to wait between batches (must be > 0).
- * @param args.processor A callback function that processes a single job.
  * @param args.maxBatches (optional) The maximum number of batches that can be held in the queue at any time (ie. queue max = batch size * max batches). Defaults to 0 (no limit).
+ * @param args.batchProcessor A function that processes a batch using a JobProcessor.
  * @param args.log (optional) A logging function to use, defaults to console.log.
  * @returns An error if the batch queue is full, or if the batcher is shutting down.
  */
-const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log = console.log }: BatcherParams) => {
+const newBatcher = ({ batchSize = 1, frequency, maxBatches = 0, batchProcessor, log = console.log }: BatcherParams) => {
     if (frequency < 1) {
         throw new Error('frequency cannot be less than 1ms');
     }
@@ -86,45 +97,14 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
         }
     };
 
-    const processBatch = async () => {
+    const processBatch = async (batchProcessor: BatchProcessor) => {
         if (batcher.queue.length) {
             // If number of remaining jobs < batchSize, save some loops
             const size = Math.min(batcher.batchSize, batcher.queue.length);
-
+    
             log(`Processing batch of ${size} jobs.`);
-
-            // This holds a list of pending promises representing each job
-            const currentBatch: Promise<void>[] = [];
-
-            // Process the next batch of jobs
-            for (let i = 0; i < size; i++) {
-                // Remove the first job and process it
-                const job = batcher.queue.shift();
-                if (job) {
-                    // Add an IIFE to push a promise onto the current batch
-                    currentBatch.push((async () => {
-                        job.result.status = JobStatus.InProgress;
- 
-                        try {
-                            await processor(job);
-                            job.result.status = JobStatus.Complete;
-                            job.result.message = "Job completed without errors";
-                        } catch (err) {
-                            job.result.status = JobStatus.Failed;
-                            job.result.message = "Job returned an error. Error type unknown";
-                            
-                            if (err instanceof Error) {
-                                job.result.error = err;
-                                job.result.message = "Job returned an error";
-                            }
-                        }
-                    })());
-                }
-            }
-
-            // Ensure all job processing is done for the current batch
-            // We don't want an unhandled error to kill the whole batch
-            await Promise.allSettled(currentBatch);
+    
+            await batchProcessor({ batchSize: size, queue: batcher.queue });
 
             // Check for shutdown
             if (batcher.isShutdown && batcher.queue.length === 0) {
@@ -135,11 +115,7 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
         } else {
             log(`No jobs to process - waiting ${frequency} ms...`);
         }
-    };
-
-    // Start the batching process
-    const interval = setInterval(processBatch, frequency);
-    log(`Starting batch processor - waiting ${frequency}ms...`);
+    }
 
     // shutdown signals the batcher to shut down
     const shutdown = () => {
@@ -158,10 +134,55 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
         addJob
     };
 
+    // Start the batching process
+    const interval = setInterval(() => processBatch(batchProcessor), frequency);
+    log(`Starting batch processor - waiting ${frequency}ms...`);
+
     // Return the batcher
     return batcher;
 };
 
+// Returns a basic batch processor function. Takes a batchSize and queue ref and progressively removes and processes jobs from the front of the queue until batchSize is reached.
+const newBatchProcessor = ({ jobProcessor }: NewBatchProcessorParams): BatchProcessor => async ({ queue, batchSize }) => {
+    // This holds a list of pending promises representing each job
+    const currentBatch: Promise<void>[] = [];
+
+    // Process the next batch of jobs
+    for (let i = 0; i < batchSize; i++) {
+        // Remove the first job and process it
+        const job = queue.shift();
+        if (job) {
+            // Push the promise onto the current batch
+            currentBatch.push(jobProcessor(job));
+        }
+    }
+
+    // Ensure all job processing is done for the current batch
+    // We don't want an unhandled error to kill the whole batch
+    return Promise.allSettled(currentBatch);
+};
+
+// Returns a basic job processor. Takes a job and calls its callback.
+const newJobProcessor = () => async (job: Job) => {
+    job.result.status = JobStatus.InProgress;
+
+    try {
+        await job.callback();
+        job.result.status = JobStatus.Complete;
+        job.result.message = "Job completed without errors";
+    } catch (err) {
+        job.result.status = JobStatus.Failed;
+        job.result.message = "Job returned an error. Error type unknown";
+        
+        if (err instanceof Error) {
+            job.result.error = err;
+            job.result.message = "Job returned an error";
+        }
+    }
+}
+
 export {
-    newBatcher
+    newBatcher,
+    newBatchProcessor,
+    newJobProcessor
 };
