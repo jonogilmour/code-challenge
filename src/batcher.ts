@@ -70,9 +70,9 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
             throw new Error(BatcherErrors.ShuttingDown);
         } else {
             // If maxBatches is set, ensure there's room in the queue
-            if (batcher.maxBatches === 0 || batcher.queue.length < batcher.maxBatches * batcher.batchSize) {
+            if (batcher.maxBatches < 1 || batcher.queue.length < batcher.maxBatches * batcher.batchSize) {
                 const job: Job = {
-                    name: name || crypto.randomUUID(),
+                    name: name || crypto.randomUUID(), // Default name to a uuid 
                     callback,
                     result: {
                         status: JobStatus.Pending
@@ -137,6 +137,7 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
         }
     };
 
+    // Start the batching process
     const interval = setInterval(processBatch, frequency);
     log(`Starting batch processor - waiting ${frequency}ms...`);
 
@@ -150,7 +151,7 @@ const newBatcher = ({ batchSize = 1, frequency, processor, maxBatches = 0, log =
 
     const batcher: Batcher = {
         batchSize,
-        maxBatches,
+        maxBatches: maxBatches < 1 ? 0 : Math.floor(maxBatches),
         isShutdown: false,
         shutdown,
         queue: [],

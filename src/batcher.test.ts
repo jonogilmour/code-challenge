@@ -42,6 +42,28 @@ describe(`Batcher`, () => {
             expect(() => newBatcher({ log: () => {}, batchSize: -100, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
             expect(() => newBatcher({ log: () => {}, batchSize: Number.MIN_SAFE_INTEGER, frequency: 100, processor: () => {}, maxBatches: 5 })).toThrow('batch size cannot be less than 1');
         });
+
+        it(`should default maxBatches to 0, to a minimum of 0, and round any float values`, async () => {
+            const processor = () => true;
+
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: -1 });
+            expect(batcher.maxBatches).toBe(0);
+
+            const batcher2 = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: 0.5 });
+            expect(batcher2.maxBatches).toBe(0);
+
+            const batcher3 = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: 3.5 });
+            expect(batcher3.maxBatches).toBe(3);
+
+            const batcher4 = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: -3.5 });
+            expect(batcher4.maxBatches).toBe(0);
+
+            const batcher5 = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: Number.MIN_SAFE_INTEGER });
+            expect(batcher5.maxBatches).toBe(0);
+
+            const batcher6 = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, processor, maxBatches: -1.245643 });
+            expect(batcher6.maxBatches).toBe(0);
+        });
     });
 
     describe(`batch processing`, () => {
