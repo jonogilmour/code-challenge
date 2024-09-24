@@ -32,6 +32,17 @@ interface AddJobParams {
     callback: Function // function that will be executed when job is processed
 }
 
+interface NewBatchProcessorParams {
+    jobProcessor: (job: Job) => Promise<void>
+}
+
+interface BatchProcessorParams {
+    queue: Job[]
+    batchSize: number
+}
+
+type BatchProcessor = (args: BatchProcessorParams) => Promise<PromiseSettledResult<void>[]>;
+
 export enum JobStatus {
     Pending = "PENDING",
     InProgress = "IN_PROGRESS",
@@ -130,17 +141,6 @@ const newBatcher = ({ batchSize = 1, frequency, maxBatches = 0, batchProcessor, 
     // Return the batcher
     return batcher;
 };
-
-interface NewBatchProcessorParams {
-    jobProcessor: (job: Job) => Promise<void>
-}
-
-interface BatchProcessorParams {
-    queue: Job[]
-    batchSize: number
-}
-
-type BatchProcessor = (args: BatchProcessorParams) => Promise<PromiseSettledResult<void>[]>;
 
 // Returns a basic batch processor function. Takes a batchSize and queue ref and progressively removes and processes jobs from the front of the queue until batchSize is reached.
 const newBatchProcessor = ({ jobProcessor }: NewBatchProcessorParams): BatchProcessor => async ({ queue, batchSize }) => {
