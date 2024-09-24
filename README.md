@@ -24,8 +24,6 @@ Run `npm test` to run the test library. Run `npm run testw` to run the test libr
 
 I ran out of time to test it fully in a "library" scenario, but the test suite does pass and has many tests. Given more time I would build, for example, a CLI to push in jobs, and log to the console when jobs are in-progress or complete to show their status.
 
-I implemented batch processing, but not the "job processor" itself (ie. the bit that triggers the job's "work"). **This was to show an example of how processing a batch would work, with job results being saved into the job itself, so the caller could just check the job's status easily (eg. by checking on an interval).** This can simply be ripped out and moved to a dependency.
-
 Due to the way JS intervals work, the frequency is a *minimum* time between batches. `setInterval` calls after **at least** `frequency` ms have passed, meaning depending on the system load or the size of a batch's requirements multiple intervals could pass before a new batch is picked up.
 
 Also, because a batch must complete processing before another batch can be brought in, a whole batch can be held in limbo by a single large job hanging or taking a long time to run.
