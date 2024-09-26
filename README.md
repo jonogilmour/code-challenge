@@ -28,6 +28,12 @@ const batcher = newBatcher({ log, batchSize, frequency, batchProcessor, maxBatch
 - `batchProcessor` takes a single named param `{ batch }`, where `batch` is an array of functions (aka jobs).
 - `maxBatches` is the maximum number of batches to queue before new jobs are rejected from the queue (the queue is full).
 
+A simple batchprocessor is included that just calls each job:
+
+```js
+batchProcessor = newBatchProcessor();
+```
+
 Add a new job using:
 
 ```js
