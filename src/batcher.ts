@@ -4,7 +4,7 @@ interface Batcher {
     isShutdown: boolean
     shutdownResolver?: Resolver
     queue: Job[]
-    shutdown: Function
+    shutdown: () => void
     addJob: (job: Job) => Promise<void>
 }
 
@@ -13,7 +13,7 @@ interface BatcherParams {
     frequency: number // Millisecond delay between processing batches
     batchProcessor: BatchProcessor // Injectable batch processor
     maxBatches?: number // Maximum number of batches to queue
-    log?: Function // Logging function
+    log?: (...data: any[]) => void // Logging function
 }
 
 interface BatchProcessorParams {
