@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest",
     "testw": "jest --watch",
+    "testwtrace": "node --trace-warnings node_modules/.bin/jest --watch",
     "build": "npx tsc"
   },
   "author": "",

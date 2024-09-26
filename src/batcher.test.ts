@@ -1,17 +1,17 @@
-import { newBatcher, BatcherErrors, JobStatus, newJobProcessor, newBatchProcessor } from "./batcher";
+import { newBatcher, BatcherErrors, JobStatus, newBatchProcessor } from "./batcher";
 
-const asyncProcessor = (delay: number) => () => new Promise<void>((resolve, reject) => {
-    setTimeout(resolve, delay);
+const asyncProcessor = (delay: number, output?: any) => () => new Promise<void>((resolve, reject) => {
+    setTimeout(() => resolve(output), delay);
 });
 
 describe(`Batcher`, () => {
     jest.useFakeTimers();
 
-    const jobProcessor = newJobProcessor();
-    const batchProcessor = newBatchProcessor({ jobProcessor });
+    const batchProcessor = newBatchProcessor();
 
     beforeEach(() => {
         jest.resetAllMocks();
+        jest.clearAllTimers();
         jest.spyOn(crypto, 'randomUUID').mockImplementation(() => 'so-m-eu-ui-d');
     });
 
@@ -68,45 +68,46 @@ describe(`Batcher`, () => {
 
     describe(`batch processing`, () => {
         it(`should employ a FIFO queue, with the oldest jobs being processed first`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, batchProcessor, maxBatches: 5 });
-            const callback = () => null;
+            const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, batchProcessor, maxBatches: 5 });       
             
-            batcher.addJob({ callback, name: '1' });
-            batcher.addJob({ callback, name: '2' });
-            batcher.addJob({ callback, name: '3' });
+            let job1Done = false;
+            let job2Done = false;
+            let job3Done = false;
 
-            expect(batcher.queue).toEqual([
-                expect.objectContaining({ name: '1' }), 
-                expect.objectContaining({ name: '2' }), 
-                expect.objectContaining({ name: '3' })
-            ]);
+            const job1 = batcher.addJob(() => { job1Done = true; });
+            const job2 = batcher.addJob(() => { job2Done = true; });
+            const job3 = batcher.addJob(() => { job3Done = true; });
 
             await jest.advanceTimersByTimeAsync(1000);
-            expect(batcher.queue).toEqual([
-                expect.objectContaining({ name: '2' }), 
-                expect.objectContaining({ name: '3' })
-            ]);
+
+            expect(job1Done).toBe(true);
+            expect(job2Done).toBe(false);
+            expect(job3Done).toBe(false);
 
             await jest.advanceTimersByTimeAsync(1000);
-            expect(batcher.queue).toStrictEqual([
-                expect.objectContaining({ name: '3' })
-            ]);
+            
+            expect(job1Done).toBe(true);
+            expect(job2Done).toBe(true);
+            expect(job3Done).toBe(false);
 
             await jest.advanceTimersByTimeAsync(1000);
-            expect(batcher.queue).toStrictEqual([]);
+            
+            expect(job1Done).toBe(true);
+            expect(job2Done).toBe(true);
+            expect(job3Done).toBe(true);
         });
 
-        it(`should run on an interval schedule`, async () => {
+        it(`should run on an interval schedule, processing a batch at a time`, async () => {
             let jobsProcessed = 0;
 
             const batcher = newBatcher({ log: () => {}, batchSize: 2, frequency: 1000, batchProcessor, maxBatches: 5 });
-            const callback = () => jobsProcessed++;
+            const job = () => jobsProcessed++;
             
-            batcher.addJob({ callback, name: '1' });
-            batcher.addJob({ callback, name: '2' });
-            batcher.addJob({ callback, name: '3' });
-            batcher.addJob({ callback, name: '4' });
-            batcher.addJob({ callback, name: '5' });
+            batcher.addJob(job);
+            batcher.addJob(job);
+            batcher.addJob(job);
+            batcher.addJob(job);
+            batcher.addJob(job);
 
             expect(jobsProcessed).toBe(0);
 
@@ -124,26 +125,28 @@ describe(`Batcher`, () => {
             let jobsProcessed = 0;
 
             const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, batchProcessor, maxBatches: 15 });
-            const callback = () => jobsProcessed++;
+            const job = () => jobsProcessed++;
             
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
+            batcher.addJob(job);
+            batcher.addJob(job);
+            batcher.addJob(job);
 
             expect(jobsProcessed).toBe(0);
+
             await jest.advanceTimersByTimeAsync(1000);
-            expect(jobsProcessed).toBe(3); // Ensure it doesn't try to reference jobs out of bounds
+
+            expect(jobsProcessed).toBe(3);
         });
 
         it(`should keep processing new jobs that come in after the queue is emptied`, async () => {
             let jobsProcessed = 0;
 
             const batcher = newBatcher({ log: () => {}, batchSize: 10, frequency: 1000, batchProcessor, maxBatches: 15 });
-            const callback = () => jobsProcessed++;
+            const job = () => jobsProcessed++;
             
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
+            batcher.addJob(job);
+            batcher.addJob(job);
+            batcher.addJob(job);
 
             expect(jobsProcessed).toBe(0);
             await jest.advanceTimersByTimeAsync(1000);
@@ -152,43 +155,46 @@ describe(`Batcher`, () => {
             await jest.advanceTimersByTimeAsync(1000);
             expect(jobsProcessed).toBe(3); // Ensure it's no longer processing any jobs
 
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
+            batcher.addJob(job);
+            batcher.addJob(job);
 
             await jest.advanceTimersByTimeAsync(1000);
             expect(jobsProcessed).toBe(5);
         });
 
-        it(`should mark started jobs as in progress, and then complete when finished, with a saved message`, async () => {
+        it(`should resolve the JobResult on success`, async () => {
+            const thing = { a: 1 };
             const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
-            const callback = asyncProcessor(500);
+            const job = jest.fn(asyncProcessor(500, thing));
             
-            const job = batcher.addJob({ callback });
+            const jobResult = batcher.addJob(job);
 
-            expect(job.result.message).toBeUndefined();
-            expect(job.result.status).toBe(JobStatus.Pending);
+            expect(job).not.toHaveBeenCalled();
 
             await jest.advanceTimersByTimeAsync(1000);
 
-            expect(job.result.status).toBe(JobStatus.InProgress);
+            expect(job).toHaveBeenCalled();
 
             await jest.advanceTimersByTimeAsync(500);
 
-            expect(job.result.status).toBe(JobStatus.Complete);
-            expect(job.result.message).toBeDefined(); // Don't need to test the message contents
+            const result = await jobResult;
+
+            expect(result).toBe(thing);
         });
 
-        it(`should mark a job as failed and save the error if an error occurs`, async () => {
-            const e = new Error('oops');
+        it(`should reject the JobResult if an error occurs`, async () => {
+            expect.assertions(1);
+
             const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });            
-            const job = batcher.addJob({ callback: () => { throw e; } }); // Called by the processor
+            const jobResult = batcher.addJob(async () => { throw new Error('oops'); });
 
-            expect(job.result.status).toBe(JobStatus.Pending);
-
-            await jest.advanceTimersByTimeAsync(1000);
-
-            expect(job.result.status).toBe(JobStatus.Failed);
-            expect(job.result.error).toBe(e);
+            try {
+                // Not async because this would attempt to run promise handlers first, meaning job result would resolve prematurely
+                jest.advanceTimersByTime(1000); 
+                await jobResult;
+            } catch (err) {
+                expect(err).toEqual(new Error('oops'));
+            }
         });
 
         it(`should stop the processing interval if the batcher is shutdown and the last batch is processed`, async () => {
@@ -196,11 +202,10 @@ describe(`Batcher`, () => {
             const clearIntervalSpy = jest.mocked(clearInterval);
 
             const batcher = newBatcher({ log: () => {}, batchSize: 1, frequency: 1000, batchProcessor, maxBatches: 5 });
-            const callback = () => null;
             
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
+            batcher.addJob(() => null);
+            batcher.addJob(() => null);
+            batcher.addJob(() => null);
 
             expect(clearIntervalSpy).not.toHaveBeenCalled();
 
@@ -222,87 +227,53 @@ describe(`Batcher`, () => {
             expect(batcher.queue).toHaveLength(0);
 
             expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+
+            // Clear all waiting jobs
+            await Promise.all(batcher.queue);
         });
     });
 
     describe(`addJob`, () => {
-        it(`should return the new job with the specified callback, and default UUID name`, async () => {
+        it(`should add a new job to the queue`, async () => {
             const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
 
-            const callback = () => null;
+            expect(batcher.queue.length).toBe(0);
 
-            const job = batcher.addJob({ callback });
+            batcher.addJob(() => null);
 
-            expect(job.name).toBe('so-m-eu-ui-d');
-            expect(job.callback).toBe(callback);
+            expect(batcher.queue.length).toBe(1);
         });
-
-        it(`should return the new job with the specified callback and name`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
-
-            const callback = () => null;
-
-            const job = batcher.addJob({ callback, name: 'something' });
-
-            expect(job.name).toBe('something');
-            expect(job.callback).toBe(callback);
-        });
-
-        it(`should set the new job status to pending`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
-
-            const callback = () => null;
-
-            const job = batcher.addJob({ callback });
-
-            expect(job.result.status).toBe(JobStatus.Pending);
-        });
-
-        it(`should return the new job with a the specified callback`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
-
-            const callback = () => null;
-
-            const job = batcher.addJob({ callback, name: 'something' });
-
-            expect(job.name).toBe('something');
-            expect(job.callback).toBe(callback);
-        });
-
-        it(`should add a new job to the batcher job queue`, async () => {
-            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
-
-            const callback = () => null;
-
-            const job = batcher.addJob({ callback, name: 'something' });
-
-            expect(batcher.queue[0]).toBe(job);
-        }); 
 
         it(`should not add a job and throw an error if the batcher is shutting down`, async () => {
             const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 5 });
 
-            const callback = () => null;
-
             batcher.isShutdown = true;
 
-            expect(() => batcher.addJob({ callback, name: 'something' })).toThrow(BatcherErrors.ShuttingDown);
+            expect.assertions(1);
+
+            try {
+                await batcher.addJob(() => null);
+            } catch (error) {
+                expect(error).toEqual(new Error(BatcherErrors.ShuttingDown))
+            }
         });
 
         it(`should not add a job and throw an error if the queue is full`, async () => {
             // Max queue size is 2 * 2 = 4
             const batcher = newBatcher({ log: () => {}, batchSize: 2, frequency: 1000, batchProcessor, maxBatches: 2 });
 
-            const callback = () => null;
-
             // Add 4 jobs
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
-            batcher.addJob({ callback });
+            batcher.addJob(() => null);
+            batcher.addJob(() => null);
+            batcher.addJob(() => null);
+            batcher.addJob(() => null);
 
             // Adding a 5th job (ie, a third batch) should throw
-            expect(() => batcher.addJob({ callback })).toThrow(BatcherErrors.QueueFull);
+            try {
+                await batcher.addJob(() => null);
+            } catch (error) {
+                expect(error).toEqual(new Error(BatcherErrors.QueueFull));
+            }
         });
     });
 
@@ -315,6 +286,26 @@ describe(`Batcher`, () => {
             batcher.shutdown();
 
             expect(batcher.isShutdown).toBeTruthy();
+        });
+
+        it(`should return a promise that resolves only when the queue is cleared`, async () => {
+            const batcher = newBatcher({ log: () => {}, batchSize: 100, frequency: 1000, batchProcessor, maxBatches: 1 });
+
+            batcher.addJob(() => null);
+
+            let isFinalised = false;
+            
+            // This will wait for shutdown
+            (async () => {
+                await batcher.shutdown();
+                isFinalised = true;
+            })();
+
+            expect(isFinalised).toBe(false); // Jobs not done even though shutdown was called
+
+            await jest.advanceTimersByTimeAsync(1000);
+
+            expect(isFinalised).toBe(true); // Jobs done, shutdown finished
         });
     });
 });
