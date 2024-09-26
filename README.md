@@ -40,7 +40,7 @@ Add a new job using:
 const jobResult = batcher.addJob(job);
 ```
 
-`job` is any function that does some work.
+`job` is any function that does some work, and can be `async`.
 
 `jobResult` is a promise that resolves to the **return value** of `job` when the job is completed, or rejects with an error thrown by `job`.
 
