@@ -60,7 +60,7 @@ const newBatcher = ({ batchSize = 1, frequency, maxBatches = 0, batchProcessor, 
         throw new Error('batch size cannot be less than 1');
     }
     
-    // Adds a new job onto the queue. The resturned JobResult is a promise that resolves upon completion of the job (success or fail).
+    // Adds a new job onto the queue. The returned JobResult is a promise that resolves/rejects upon completion of the job. The return value of a Job is resolved on success.
     const addJob = (job: Job): JobResult => new Promise((resolve, reject) => {
         if (batcher.isShutdown) {
             reject(new Error(BatcherErrors.ShuttingDown));
@@ -84,10 +84,6 @@ const newBatcher = ({ batchSize = 1, frequency, maxBatches = 0, batchProcessor, 
             }
         }
     });
-
-    // put in a job, and await the result returned from addJob
-    // addjob adds to a queue
-    // when the batch processor processes that job, it should resolve the result promise
 
     const processBatch = async (batchProcessor: BatchProcessor) => {
         if (batcher.queue.length) {    
