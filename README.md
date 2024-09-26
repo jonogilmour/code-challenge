@@ -59,7 +59,9 @@ Run `npm run build` to compile the TS into CommonJS in the `dist` directory.
 
 ## Testing
 
-Run `npm test` to run the test library. Run `npm run testw` to run the test library in watch mode.
+Run `npm test` to run the test library. 
+Run `npm run testw` to run the test library in watch mode. 
+Run `npm run testwtrace` to run the test library with all rejected promise handling traces reported.
 
 ## Caveats and Thought Process
 
